@@ -4,6 +4,8 @@ import pygame
 import random
 pygame.init()
 
+######################################### classes ############################################
+
 class Button():
     def __init__(self,x,y,image):
         self.image = image
@@ -24,7 +26,70 @@ class Button():
         surf.blit(self.image, (self.rect.x, self.rect.y))
         return action
 
+class Slot():
+    def __init__(self, breite, hoehe, bild_liste_start):
+        self.scroll = 0
+        self.bild_liste_start = bild_liste_start
+        self.bilder_inactive, self.bilder_active = init_slot(self.bild_liste_start)
+        self.breite = breite
+        self.hoehe = hoehe
+        self.surf = pygame.Surface((self.breite, self.hoehe))
+        self.stop_toggle = False
+        self.top_speed = 500 * random.uniform(0.8, 1.2)
+        self.speed = 0
+        self.lowest_speed = 20
+        self.stop_acc = 2
+        self.start_acc = 10
+        self.color = (255, 255, 255)
 
+        # Slots bewegen
+    def update(self, delta_time):
+        self.scroll += self.speed * delta_time
+        if self.scroll >= (self.hoehe/3):
+            self.scroll -= (self.hoehe/3)
+            self.bilder_active.pop(0)
+            self.bilder_inactive, self.bilder_active = bild_hinzuf(self.bilder_inactive, self.bilder_active)
+            occured = [zeile[1] for zeile in self.bilder_inactive]  # nur die zweite Spalte
+            if sum(occured) == 0:
+                self.bilder_inactive = [zeile[:] for zeile in self.bild_liste_start]
+
+        self.surf.fill(self.color)
+
+        for i, bild in enumerate(self.bilder_active):
+            y_pos = (3-i-1) * (self.hoehe/3) + self.scroll
+            self.surf.blit(bild[0], (5 // 2, y_pos))
+            
+        if self.stop_toggle and self.speed > self.lowest_speed:
+            self.speed -= self.stop_acc
+        elif self.stop_toggle and  self.scroll < self.stop_acc:
+            self.scroll = 0
+            self.speed = 0
+
+        if not self.stop_toggle and self.speed < self.top_speed:
+            self.speed += self.start_acc
+
+    def draw(self, target_surface, x_pos, y_pos):
+        target_surface.blit(self.surf, (x_pos, y_pos))
+
+    def stop(self):
+        if self.speed >= self.top_speed: 
+            self.stop_toggle = True
+
+    def start(self):
+        if self.speed == 0: 
+            self.stop_toggle = False
+
+    def get_stop_toggle(self):
+        return self.stop_toggle
+        
+
+
+
+######################################### functions ############################################
+
+def load_img(path, width, hight):
+    img = pygame.image.load(path).convert_alpha()
+    return pygame.transform.scale(img, (width, hight))
 
 def bild_hinzuf(bild_liste, slot_bilder):
     # Alle Zeilen, deren zweites Element nicht 1 ist
@@ -36,8 +101,15 @@ def bild_hinzuf(bild_liste, slot_bilder):
     slot_bilder.append(bild_liste[zufall_index])
     return bild_liste, slot_bilder
 
+# Slot-Listen vorbereiten
+def init_slot(bild_liste_start):
+    bilder = []
+    bild_liste = [zeile[:] for zeile in bild_liste_start]
+    for _ in range(4):  # immer 4 Bilder pro Slot aktiv
+        bild_liste, bilder = bild_hinzuf(bild_liste, bilder)
+    return bild_liste, bilder
 
-
+######################################### main ############################################
 
 def main():
 
@@ -50,46 +122,11 @@ def main():
     bild_breite = 50
     bild_hoehe = 50
     bild_abstand = 10
-    slot_breite = 60
-    slot_hoehe = 180
-
-    #Slot Stati
-    # stop_slot = 0
-    start_slots = 0
-    stop_slot1 = False
-    stop_slot2 = False
-    stop_slot3 = False
-    positioning_slot1 = False
-    positioning_slot2 = False
-    positioning_slot3 = False
-
-    # Geschwindigkeit
-    start_speed = 500
-    stop_inc = 2
-    start_inc = 10
-    lowest_speed = 20
-    y1 = start_speed 
-    y2 = start_speed 
-    y3 = start_speed 
-
-    # Slot-Surfaces
-    slot1_surf = pygame.Surface((slot_breite, slot_hoehe))
-    slot2_surf = pygame.Surface((slot_breite, slot_hoehe))
-    slot3_surf = pygame.Surface((slot_breite, slot_hoehe))
-
-    # Offsets
-    scroll1 = 0
-    scroll2 = 0
-    scroll3 = 0
-
+    slot_breite = bild_hoehe + bild_abstand
+    slot_hoehe = 3 * (bild_hoehe + bild_abstand)
 
     screen = pygame.display.set_mode((600, 600), pygame.HWSURFACE | pygame.DOUBLEBUF)
     pygame.display.set_caption("Slot Machine")
-
-    # Bilder laden
-    def load_img(path, width, hight):
-        img = pygame.image.load(path).convert_alpha()
-        return pygame.transform.scale(img, (width, hight))
 
     kirsche_img = load_img('bilder/Kirsche.png', bild_breite, bild_hoehe)
     sieben_img = load_img('bilder/7.png', bild_breite, bild_hoehe)
@@ -98,6 +135,7 @@ def main():
     book_img = load_img('bilder/book.png', bild_breite, bild_hoehe)
     erdblock_img = load_img('bilder/erdblock.png', bild_breite, bild_hoehe)
     glocke_img = load_img('bilder/glocke.png', bild_breite, bild_hoehe)
+    
     stop_button_img = load_img('bilder/Stop.PNG', 80, 40)
     start_button_img = load_img('bilder/start.png', 80, 40)
 
@@ -115,106 +153,57 @@ def main():
         [glocke_img, 1]
     ]
 
-    # Slot-Listen vorbereiten
-    def init_slot():
-        bilder = []
-        bild_liste = [zeile[:] for zeile in bild_liste_start]
-        for _ in range(4):  # immer 4 Bilder pro Slot aktiv
-            bild_liste, bilder = bild_hinzuf(bild_liste, bilder)
-        return bild_liste, bilder
-
-    bild_liste1, slot1_bilder = init_slot()
-    bild_liste2, slot2_bilder = init_slot()
-    bild_liste3, slot3_bilder = init_slot()
-
-
-
+    
+    slot1 = Slot(slot_breite, slot_hoehe, bild_liste_start)
+    slot2 = Slot(slot_breite, slot_hoehe, bild_liste_start)
+    slot3 = Slot(slot_breite, slot_hoehe, bild_liste_start)
 
     running = True
     clock = pygame.time.Clock()
-    # delta_time = 0.1
-
-    
+    # delta_time = 0.1  
     automat_surf = pygame.Surface((300,450))
 
     while running:
         delta_time = clock.tick(60) / 1000.0
 
-
-        screen.fill(weiß)
-        #Automat füllen, Slots und Buttons zeichnen
+        #Automat erstellen
         automat_surf.fill(grau)
         pygame.draw.rect(automat_surf, schwarz, (0, 0, 300, 450), 3)
         pygame.draw.line(automat_surf, schwarz, (0, 87), (300, 87), 3)
         pygame.draw.line(automat_surf, schwarz, (0, 271), (300, 271), 3)
 
         # Slots bewegen
-        def update_slot(scroll, slot_bilder, bild_liste, slot_surf, y, stop_slot, positioning_slot):
-            scroll += y * delta_time
-            if scroll >= (bild_hoehe + bild_abstand):
-                scroll -= (bild_hoehe + bild_abstand)
-                slot_bilder.pop(0)
-                bild_liste, slot_bilder = bild_hinzuf(bild_liste, slot_bilder)
-                occured = [zeile[1] for zeile in bild_liste]  # nur die zweite Spalte
-                if sum(occured) == 0:
-                    bild_liste = [zeile[:] for zeile in bild_liste_start]
-            slot_surf.fill(weiß)
-            for i, bild in enumerate(slot_bilder):
-                pos_y = (3-i-1) * (bild_hoehe + bild_abstand) + scroll
-                slot_surf.blit(bild[0], (bild_abstand // 2, pos_y))
-                
-            if stop_slot and y > lowest_speed:
-                y -= stop_inc
-            elif stop_slot and  scroll < stop_inc:
-                scroll = 0
-                y = 0
+        slot1.update(delta_time)
+        slot2.update(delta_time)
+        slot3.update(delta_time)
 
-            
-            return scroll, slot_bilder, bild_liste, y, positioning_slot
 
-        scroll1, slot1_bilder, bild_liste1, y1, positioning_slot1 = update_slot(scroll1, slot1_bilder, bild_liste1, slot1_surf, y1, stop_slot1, positioning_slot1)
-        scroll2, slot2_bilder, bild_liste2, y2, positioning_slot2 = update_slot(scroll2, slot2_bilder, bild_liste2, slot2_surf, y2, stop_slot2, positioning_slot2)
-        scroll3, slot3_bilder, bild_liste3, y3, positioning_slot3 = update_slot(scroll3, slot3_bilder, bild_liste3, slot3_surf, y3, stop_slot3, positioning_slot3)
+        # Slots auf Automaten zeichnen
+        slot1.draw(automat_surf, 30, 90)
+        slot2.draw(automat_surf, 120, 90)
+        slot3.draw(automat_surf, 210, 90)
 
-        # Slots ins Automaten-Surface zeichnen
-        automat_surf.blit(slot1_surf, (30, 90))
-        automat_surf.blit(slot2_surf, (120, 90))
-        automat_surf.blit(slot3_surf, (210, 90))
-
-        # Automaten-Surface ins Hauptfenster
+        # Automaten zeichnen
         screen.blit(automat_surf, (150, 50))
     
-
         #stop slots
         if stop_button.draw(screen):
-            if stop_slot1 == 0: stop_slot1 = 1
-            elif stop_slot2 == 0: stop_slot2 = 1
-            else: stop_slot3 = 1
-                
-
-        # if stop_slot > 0 and y1 > lowest_speed:
-        #     y1 -= stop_inc
-        # elif y1 <= lowest_speed and positioning_slot < 1:
-        #     positioning_slot = 1
-
-        # if stop_slot > 1 and y2 > lowest_speed:
-        #     y2 -= stop_inc
-        # elif y2 <= lowest_speed and positioning_slot < 2:
-        #     positioning_slot = 2
-
-        # if stop_slot > 2 and y3 > lowest_speed:
-        #     y3 -= stop_inc
-        # elif y3 <= lowest_speed and positioning_slot < 3:
-        #     positioning_slot = 3
+            if not slot1.get_stop_toggle(): 
+                slot1.stop()
+                print("stop slot 1")
+            elif not slot2.get_stop_toggle(): slot2.stop()
+            else: slot3.stop()
 
            # start slots        
         if start_button.draw(screen):
-            start_slots = 1
+            slot1.start()
+            slot2.start()
+            slot3.start()
 
-        if start_slots == 1 and y1 < start_speed and stop_slot == 0:
-            y1 += start_inc
-            y2 += start_inc
-            y3 += start_inc     
+        if start_slots == 1 and speed1 < top_speed and stop_slot == 0:
+            speed1 += start_acc
+            speed2 += start_acc
+            speed3 += start_acc     
         
         # Spiel schließen
         for event in pygame.event.get():
